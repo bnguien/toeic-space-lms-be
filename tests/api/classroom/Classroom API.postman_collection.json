@@ -1,0 +1,398 @@
+{
+  "info": {
+    "_postman_id": "51c3f40f-ec6f-405b-8edf-968ae9bd02d2",
+    "name": "ToeicSpace Classroom API Tests",
+    "description": "Sequential Newman API checks against the existing Classroom demo dataset. Read-only tests use seeded records; write requests are validation failures or a no-op same-room assignment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "TC-01: Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}", "options": { "raw": { "language": "json" } } },
+        "url": "{{identityBaseUrl}}/api/auth/login"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-01: Login as Admin', function () {",
+        "  pm.response.to.have.status(200);",
+        "  const body = pm.response.json();",
+        "  pm.expect(body.accessToken).to.be.a('string').and.not.empty;",
+        "  pm.expect(body.user.role).to.eql('Admin');",
+        "  pm.environment.set('accessToken', body.accessToken);",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-02: Get Centers Successfully",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/centers?page=1&pageSize=20", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-02: Get Centers Successfully', function () {",
+        "  pm.response.to.have.status(200);",
+        "  const body = pm.response.json();",
+        "  pm.expect(body.items).to.be.an('array').with.lengthOf.at.least(2);",
+        "  pm.environment.set('centerId', body.items[0].id);",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-03: Get Center by ID",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/centers/{{centerId}}", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-03: Get Center by ID', function () {",
+        "  pm.response.to.have.status(200);",
+        "  const body = pm.response.json();",
+        "  pm.expect(body.id).to.eql(pm.environment.get('centerId'));",
+        "  pm.expect(body.timeZoneId).to.eql('Asia/Ho_Chi_Minh');",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-04: Get Rooms Successfully",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/rooms?page=1&pageSize=20", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-04: Get Rooms Successfully', function () {",
+        "  pm.response.to.have.status(200);",
+        "  const body = pm.response.json();",
+        "  pm.expect(body.items).to.be.an('array').with.lengthOf.at.least(5);",
+        "  pm.environment.set('roomId', body.items[0].id);",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-05: Get Room by ID",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/rooms/{{roomId}}", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-05: Get Room by ID', function () {",
+        "  pm.response.to.have.status(200);",
+        "  const body = pm.response.json();",
+        "  pm.expect(body.id).to.eql(pm.environment.get('roomId'));",
+        "  pm.expect(body.capacity).to.be.above(0);",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-06: Reject Invalid Room Capacity",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"centerId\": \"{{centerId}}\",\n  \"name\": \"Newman invalid capacity\",\n  \"capacity\": 0\n}", "options": { "raw": { "language": "json" } } },
+        "url": "{{classroomBaseUrl}}/api/v1/rooms",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-06: Reject Invalid Room Capacity', function () {",
+        "  pm.response.to.have.status(400);",
+        "  pm.expect(pm.response.json().code).to.eql('invalid_room');",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-07: Reject Invalid Center Details",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"\",\n  \"address\": \"\",\n  \"timeZoneId\": \"Asia/Ho_Chi_Minh\"\n}", "options": { "raw": { "language": "json" } } },
+        "url": "{{classroomBaseUrl}}/api/v1/centers",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-07: Reject Invalid Center Details', function () {",
+        "  pm.response.to.have.status(400);",
+        "  pm.expect(pm.response.json().code).to.eql('invalid_center');",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-08: Get Demo Classes Successfully",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/classes?search=DEMO-TOEIC&page=1&pageSize=20", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-08: Get Demo Classes Successfully', function () {",
+        "  pm.response.to.have.status(200);",
+        "  const body = pm.response.json();",
+        "  pm.expect(body.items).to.be.an('array').with.lengthOf.at.least(4);",
+        "  const demo = body.items.find(item => item.code === 'DEMO-TOEIC-800-MW');",
+        "  pm.expect(demo, 'seeded 800+ class').to.exist;",
+        "  pm.expect(demo.startDate).to.be.a('string');",
+        "  pm.expect(demo.endDate).to.be.a('string');",
+        "  pm.environment.set('classId', demo.id);",
+        "  pm.environment.set('classDefaultRoomId', demo.defaultRoomId);",
+        "  pm.environment.set('classStartDate', demo.startDate);",
+        "  pm.environment.set('classEndDate', demo.endDate);",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-09: Get Demo Class Details",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/classes/{{classId}}", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-09: Get Demo Class Details', function () {",
+        "  pm.response.to.have.status(200);",
+        "  const body = pm.response.json();",
+        "  pm.expect(body.class.id).to.eql(pm.environment.get('classId'));",
+        "  pm.expect(body.class.teacherId).to.be.a('string').and.not.empty;",
+        "  pm.environment.set('teacherId', body.class.teacherId);",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-10: Set Existing Default Room Without Changing It",
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"roomId\": \"{{classDefaultRoomId}}\",\n  \"reason\": null,\n  \"applyToFutureSessions\": false\n}", "options": { "raw": { "language": "json" } } },
+        "url": "{{classroomBaseUrl}}/api/v1/classes/{{classId}}/default-room",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-10: Set Existing Default Room Without Changing It', function () {",
+        "  pm.response.to.have.status(200);",
+        "  pm.expect(pm.response.json().class.defaultRoomId).to.eql(pm.environment.get('classDefaultRoomId'));",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-11: Reject Unknown Default Room",
+      "event": [
+        { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+        "const unknownId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {",
+        "  const random = Math.floor(Math.random() * 16);",
+        "  return (character === 'x' ? random : (random & 0x3) | 0x8).toString(16);",
+        "});",
+        "pm.environment.set('unknownId', unknownId);"
+      ] } },
+        { "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-11: Reject Unknown Default Room', function () {",
+        "  pm.response.to.have.status(404);",
+        "  pm.expect(pm.response.json().code).to.eql('room_not_found');",
+        "});"
+      ] } }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"roomId\": \"{{unknownId}}\",\n  \"reason\": \"Negative API test\",\n  \"applyToFutureSessions\": false\n}", "options": { "raw": { "language": "json" } } },
+        "url": "{{classroomBaseUrl}}/api/v1/classes/{{classId}}/default-room",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }
+      }
+    },
+    {
+      "name": "TC-12: Get Class Schedules",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/classes/{{classId}}/schedules", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-12: Get Class Schedules', function () {",
+        "  pm.response.to.have.status(200);",
+        "  const schedules = pm.response.json();",
+        "  pm.expect(schedules).to.be.an('array').with.lengthOf.at.least(1);",
+        "  const schedule = schedules[0];",
+        "  pm.environment.set('scheduleId', schedule.id);",
+        "  pm.environment.set('teacherId', schedule.teacherId);",
+        "  pm.environment.set('scheduleData', JSON.stringify(schedule));",
+        "  pm.environment.set('scheduleEffectiveFrom', schedule.effectiveFrom);",
+        "  pm.environment.set('scheduleEffectiveTo', schedule.effectiveTo);",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-13: Get Schedule by ID",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/classes/{{classId}}/schedules/{{scheduleId}}", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-13: Get Schedule by ID', function () {",
+        "  pm.response.to.have.status(200);",
+        "  pm.expect(pm.response.json().id).to.eql(pm.environment.get('scheduleId'));",
+        "  pm.expect(pm.response.json().timeZoneId).to.eql('Asia/Ho_Chi_Minh');",
+        "  pm.environment.set('scheduleData', JSON.stringify(pm.response.json()));",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-14: Reject Invalid Class Schedule",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"daysOfWeek\": [\"Monday\"],\n  \"startTime\": \"22:00:00\",\n  \"endTime\": \"18:00:00\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"mode\": \"Offline\",\n  \"timeZoneId\": \"Asia/Ho_Chi_Minh\",\n  \"effectiveFrom\": \"{{scheduleEffectiveFrom}}\",\n  \"effectiveTo\": \"{{scheduleEffectiveTo}}\",\n  \"excludeDates\": []\n}", "options": { "raw": { "language": "json" } } },
+        "url": "{{classroomBaseUrl}}/api/v1/classes/{{classId}}/schedules",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-14: Reject Invalid Class Schedule', function () {",
+        "  pm.response.to.have.status(400);",
+        "  pm.expect(pm.response.json().code).to.eql('invalid_schedule');",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-15: Get Class Sessions",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/class-sessions?from={{sessionFrom}}&to={{sessionTo}}&classId={{classId}}&status=Scheduled&page=1&pageSize=100", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [
+        { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+          "const start = new Date(`${pm.environment.get('classStartDate')}T00:00:00.000Z`);",
+          "const end = new Date(`${pm.environment.get('classEndDate')}T00:00:00.000Z`);",
+          "start.setUTCDate(start.getUTCDate() - 1);",
+          "end.setUTCDate(end.getUTCDate() + 2);",
+          "pm.environment.set('sessionFrom', start.toISOString());",
+          "pm.environment.set('sessionTo', end.toISOString());"
+        ] } },
+        { "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('TC-15: Get Class Sessions', function () {",
+          "  pm.response.to.have.status(200);",
+          "  const body = pm.response.json();",
+          "  pm.expect(body.items).to.be.an('array').with.lengthOf.at.least(1);",
+          "  const session = body.items.find(item => item.status === 'Scheduled' && item.classScheduleId);",
+          "  pm.expect(session).to.exist;",
+          "  pm.environment.set('sessionId', session.id);",
+          "  pm.environment.set('sessionStartAt', session.startAt);",
+          "  pm.environment.set('sessionEndAt', session.endAt);",
+          "  pm.environment.set('teacherId', session.teacherId);",
+          "  pm.environment.set('sessionMode', session.mode);",
+          "  pm.environment.set('sessionRoomId', session.roomId || '');",
+          "  pm.environment.set('sessionScheduleId', session.classScheduleId);",
+          "  pm.environment.set('sessionOriginalLocalDate', session.originalLocalDate);",
+          "});"
+        ] } }
+      ]
+    },
+    {
+      "name": "TC-16: Get Class Session by ID",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/class-sessions/{{sessionId}}", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-16: Get Class Session by ID', function () {",
+        "  pm.response.to.have.status(200);",
+        "  const body = pm.response.json();",
+        "  pm.expect(body.id).to.eql(pm.environment.get('sessionId'));",
+        "  pm.expect(body.startAt).to.be.a('string');",
+        "  pm.environment.set('sessionData', JSON.stringify(body));",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-17: Get Class Session Audit",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/class-sessions/{{sessionId}}/audit", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-17: Get Class Session Audit', function () {",
+        "  pm.response.to.have.status(200);",
+        "  const body = pm.response.json();",
+        "  pm.expect(body).to.be.an('array').with.lengthOf.at.least(1);",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-18: Reject Overlapping Session",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"classId\": \"{{classId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"title\": \"Newman conflict check\",\n  \"description\": \"Expected conflict against seeded session\",\n  \"sessionType\": \"Regular\",\n  \"startAt\": \"{{sessionStartAt}}\",\n  \"endAt\": \"{{sessionEndAt}}\",\n  \"mode\": \"{{sessionMode}}\",\n  \"roomId\": {{sessionRoomJson}},\n  \"notes\": null\n}", "options": { "raw": { "language": "json" } } },
+        "url": "{{classroomBaseUrl}}/api/v1/class-sessions",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }
+      },
+      "event": [
+        { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+          "const room = pm.environment.get('sessionRoomId');",
+          "pm.environment.set('sessionRoomJson', room ? JSON.stringify(room) : 'null');"
+        ] } },
+        { "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('TC-18: Reject Overlapping Session', function () {",
+          "  pm.response.to.have.status(409);",
+          "  pm.expect(pm.response.json().code).to.eql('schedule_conflict');",
+          "});"
+        ] } }
+      ]
+    },
+    {
+      "name": "TC-19: Get Enrollments for Demo Class",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/classes/{{classId}}/enrollments?page=1&pageSize=20", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-19: Get Enrollments for Demo Class', function () {",
+        "  pm.response.to.have.status(200);",
+        "  const body = pm.response.json();",
+        "  pm.expect(body.items).to.be.an('array').with.lengthOf.at.least(1);",
+        "  pm.expect(body.items[0].classId).to.eql(pm.environment.get('classId'));",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-20: Reject Unauthenticated Request",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/rooms?page=1&pageSize=1", "auth": { "type": "noauth" } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-20: Reject Unauthenticated Request', function () {",
+        "  pm.response.to.have.status(401);",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-21: Reject Online Session With Room Override",
+      "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{{sessionEditBody}}", "options": { "raw": { "language": "json" } } }, "url": "{{classroomBaseUrl}}/api/v1/class-sessions/{{sessionId}}", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [
+        { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+          "const session = JSON.parse(pm.environment.get('sessionData'));",
+          "const edit = { teacherId: session.teacherId, title: session.title, description: session.description, startAt: session.startAt, endAt: session.endAt, mode: 'Online', roomId: pm.environment.get('roomId'), notes: session.notes, reason: 'TC-21 validates online room override rejection', expectedVersion: session.version };",
+          "pm.environment.set('sessionEditBody', JSON.stringify(edit));"
+        ] } },
+        { "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('TC-21: Reject Online Session With Room Override', function () {",
+          "  pm.response.to.have.status(400);",
+          "  pm.expect(pm.response.json().code).to.eql('online_room');",
+          "});"
+        ] } }
+      ]
+    },
+    {
+      "name": "TC-22: Reject Stale Schedule Version",
+      "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{{scheduleUpdateBody}}", "options": { "raw": { "language": "json" } } }, "url": "{{classroomBaseUrl}}/api/v1/classes/{{classId}}/schedules/{{scheduleId}}", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [
+        { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+          "const schedule = JSON.parse(pm.environment.get('scheduleData'));",
+          "const input = { classId: schedule.classId, daysOfWeek: schedule.daysOfWeek, startTime: schedule.startTime, endTime: schedule.endTime, teacherId: schedule.teacherId, mode: schedule.mode, timeZoneId: schedule.timeZoneId, effectiveFrom: schedule.effectiveFrom, effectiveTo: schedule.effectiveTo, excludeDates: schedule.excludeDates };",
+          "pm.environment.set('scheduleUpdateBody', JSON.stringify({ input, expectedVersion: schedule.version - 1 }));"
+        ] } },
+        { "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('TC-22: Reject Stale Schedule Version', function () {",
+          "  pm.response.to.have.status(409);",
+          "  pm.expect(pm.response.json().code).to.eql('concurrency_conflict');",
+          "});"
+        ] } }
+      ]
+    },
+    {
+      "name": "TC-23: Reject Parallel Stale Schedule Updates",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/classes/{{classId}}/schedules/{{scheduleId}}", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-23: Load Schedule Before Parallel Stale Updates', function () { pm.response.to.have.status(200); });",
+        "const schedule = pm.response.json();",
+        "const input = { classId: schedule.classId, daysOfWeek: schedule.daysOfWeek, startTime: schedule.startTime, endTime: schedule.endTime, teacherId: schedule.teacherId, mode: schedule.mode, timeZoneId: schedule.timeZoneId, effectiveFrom: schedule.effectiveFrom, effectiveTo: schedule.effectiveTo, excludeDates: schedule.excludeDates };",
+        "const updateRequest = { url: `${pm.environment.get('classroomBaseUrl')}/api/v1/classes/${pm.environment.get('classId')}/schedules/${pm.environment.get('scheduleId')}`, method: 'PUT', header: { 'Content-Type': 'application/json', Authorization: `Bearer ${pm.environment.get('accessToken')}` }, body: { mode: 'raw', raw: JSON.stringify({ input, expectedVersion: schedule.version - 1 }) } };",
+        "const results = [];",
+        "const collect = (error, response) => { results.push({ error, response }); if (results.length === 2) pm.test('TC-23: Both Parallel Stale Updates Return 409 concurrency_conflict', function () { results.forEach(result => { pm.expect(result.error).to.equal(null); pm.expect(result.response.code).to.equal(409); pm.expect(result.response.json().code).to.eql('concurrency_conflict'); }); }); };",
+        "pm.sendRequest(updateRequest, collect);",
+        "pm.sendRequest(updateRequest, collect);"
+      ] } }]
+    },
+    {
+      "name": "TC-24: Repeated Recurring Generation Is Idempotent",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"from\": \"{{sessionOriginalLocalDate}}\",\n  \"to\": \"{{sessionOriginalLocalDate}}\",\n  \"excludeDates\": []\n}", "options": { "raw": { "language": "json" } } }, "url": "{{classroomBaseUrl}}/api/v1/classes/{{classId}}/schedules/generate", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-24: Repeated Recurring Generation Is Idempotent', function () {",
+        "  pm.response.to.have.status(200);",
+        "  const result = pm.response.json();",
+        "  pm.expect(result.affected).to.be.an('array').that.is.empty;",
+        "  pm.expect(result.skipped).to.be.an('array').with.lengthOf.at.least(1);",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "TC-25: Admin Cannot Access Teacher Class Listing",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/classes/me?page=1&pageSize=20", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-25: Admin Cannot Access Teacher Class Listing', function () { pm.response.to.have.status(403); });"
+      ] } }]
+    },
+    {
+      "name": "TC-26: Admin Cannot Access Student Enrolled Classes",
+      "request": { "method": "GET", "header": [], "url": "{{classroomBaseUrl}}/api/v1/classes/me/enrolled?page=1&pageSize=20", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('TC-26: Admin Cannot Access Student Enrolled Classes', function () { pm.response.to.have.status(403); });"
+      ] } }]
+    }
+  ]
+}

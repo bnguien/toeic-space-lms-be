@@ -1,0 +1,185 @@
+using Hangfire;
+using Hangfire.MySql;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using StackExchange.Redis;
+using ToeicSpace.Identity.Application.Interfaces.Caching;
+using ToeicSpace.Identity.Application.Interfaces.Persistence;
+using ToeicSpace.Identity.Application.Interfaces.Security;
+using ToeicSpace.Identity.Application.Options;
+using ToeicSpace.Identity.Infrastructure.Consumers;
+using ToeicSpace.Identity.Infrastructure.Jobs;
+using ToeicSpace.Identity.Infrastructure.Persistence;
+using ToeicSpace.Identity.Application.Common.Sessions;
+using ToeicSpace.Identity.Infrastructure.Persistence.Repositories;
+using ToeicSpace.Identity.Infrastructure.Services.Bootstrap;
+using ToeicSpace.Identity.Infrastructure.Services.Caching;
+using ToeicSpace.Identity.Infrastructure.Services.Email;
+using ToeicSpace.Identity.Infrastructure.Services.Security;
+using ToeicSpace.BuildingBlocks.Messaging.MassTransit;
+using ToeicSpace.Identity.Infrastructure.Messaging.Outbox;
+
+namespace ToeicSpace.Identity.Infrastructure;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddInfrastructureServices(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var connectionString =
+            configuration.GetConnectionString("IdentityDatabase")
+            ?? throw new InvalidOperationException(
+                "Connection string 'IdentityDatabase' was not found.");
+
+        services.AddDbContext<IdentityDbContext>(options =>
+            options.UseMySql(
+                connectionString,
+                new MySqlServerVersion(new Version(8, 4, 0))));
+
+        // Read-only access for the analytics queries; writes keep going through the repositories.
+        services.AddScoped<IIdentityDbContext>(serviceProvider =>
+            serviceProvider.GetRequiredService<IdentityDbContext>());
+
+        services.AddHangfire(hangfire => hangfire
+            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+            .UseSimpleAssemblyNameTypeSerializer()
+            .UseRecommendedSerializerSettings()
+            .UseStorage(new MySqlStorage(
+                connectionString,
+                new MySqlStorageOptions
+                {
+                    PrepareSchemaIfNecessary = true,
+                    TablesPrefix = "Hangfire"
+                })));
+        services.AddHangfireServer();
+
+        var redisConnectionString =
+            configuration.GetConnectionString("Redis")
+            ?? throw new InvalidOperationException(
+                "Connection string 'Redis' was not found.");
+
+        var otpSection = configuration.GetSection(OtpOptions.SectionName);
+        var otpOptions = new OtpOptions
+        {
+            HmacSecret = otpSection["HmacSecret"] ?? string.Empty,
+            ChallengeTtlMinutes = int.TryParse(
+                otpSection["ChallengeTtlMinutes"],
+                out var challengeTtlMinutes)
+                ? challengeTtlMinutes
+                : 5,
+            ResendCooldownSeconds = int.TryParse(
+                otpSection["ResendCooldownSeconds"],
+                out var resendCooldownSeconds)
+                ? resendCooldownSeconds
+                : 60
+        };
+
+        var identitySection = configuration.GetSection(
+            InactiveAccountCleanupOptions.SectionName);
+        var cleanupOptions = new InactiveAccountCleanupOptions
+        {
+            InactiveAccountRetentionDays = int.TryParse(
+                identitySection["InactiveAccountRetentionDays"],
+                out var inactiveAccountRetentionDays)
+                ? inactiveAccountRetentionDays
+                : 3
+        };
+
+        if (cleanupOptions.InactiveAccountRetentionDays <= 0)
+        {
+            throw new InvalidOperationException(
+                "Identity:InactiveAccountRetentionDays must be greater than zero.");
+        }
+
+        var smtpSection = configuration.GetSection(SmtpOptions.SectionName);
+        var smtpOptions = new SmtpOptions
+        {
+            Server = smtpSection["Server"] ?? string.Empty,
+            Port = int.TryParse(smtpSection["Port"], out var smtpPort)
+                ? smtpPort
+                : 587,
+            SenderName = smtpSection["SenderName"] ?? "ToeicSpace",
+            SenderEmail = smtpSection["SenderEmail"] ?? string.Empty,
+            Password = smtpSection["Password"] ?? string.Empty,
+            SupportEmail = smtpSection["SupportEmail"]
+                ?? "support@toeicspace.com"
+        };
+
+        var jwtOptions = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
+            ?? new JwtOptions();
+        var sessionOptions = configuration.GetSection(SessionOptions.SectionName).Get<SessionOptions>()
+            ?? new SessionOptions();
+        var loginLockoutOptions = configuration.GetSection(LoginLockoutOptions.SectionName).Get<LoginLockoutOptions>()
+            ?? new LoginLockoutOptions();
+        var bootstrapAdminOptions = configuration.GetSection(BootstrapAdminOptions.SectionName).Get<BootstrapAdminOptions>()
+            ?? new BootstrapAdminOptions();
+
+        if (sessionOptions.RefreshTokenLifetime <= TimeSpan.Zero
+            || sessionOptions.IdleTimeout <= TimeSpan.Zero
+            || sessionOptions.MaxActiveSessions <= 0)
+        {
+            throw new InvalidOperationException(
+                "Session:RefreshTokenLifetime, Session:IdleTimeout and Session:MaxActiveSessions must be greater than zero.");
+        }
+
+        var passwordResetOptions = configuration.GetSection(PasswordResetOptions.SectionName)
+            .Get<PasswordResetOptions>() ?? new PasswordResetOptions();
+        if (passwordResetOptions.OtpLifetimeMinutes is < 1 or > 60
+            || passwordResetOptions.ResetLifetimeMinutes is < 1 or > 60
+            || passwordResetOptions.ResendCooldownSeconds is < 1 or > 3600
+            || passwordResetOptions.MaximumFailedAttempts is < 1 or > 10)
+        {
+            throw new InvalidOperationException("PasswordReset options are outside the allowed ranges.");
+        }
+
+        services.AddSingleton(passwordResetOptions);
+        services.AddSingleton<IPasswordResetStore, RedisPasswordResetStore>();
+        services.AddScoped<IPasswordRepository, PasswordRepository>();
+        services.AddSingleton(otpOptions);
+        services.AddSingleton(cleanupOptions);
+        services.AddSingleton(smtpOptions);
+        services.AddSingleton(jwtOptions);
+        services.AddSingleton(sessionOptions);
+        services.AddSingleton(loginLockoutOptions);
+        services.AddSingleton(bootstrapAdminOptions);
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<IConnectionMultiplexer>(_ =>
+            ConnectionMultiplexer.Connect(redisConnectionString));
+
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
+        services.AddSingleton<IAccessTokenIssuer, JwtAccessTokenIssuer>();
+        services.AddSingleton<IRefreshTokenGenerator, RefreshTokenGenerator>();
+        services.AddSingleton<ITemporaryPasswordGenerator, TemporaryPasswordGenerator>();
+        services.AddSingleton<ILoginAttemptLimiter, RedisLoginAttemptLimiter>();
+        services.AddHostedService<AdminAccountBootstrapper>();
+        services.AddSingleton<IOtpGenerator, CryptographicOtpGenerator>();
+        services.AddSingleton<IOtpHasher, HmacOtpHasher>();
+        services.AddSingleton<IOtpChallengeStore, RedisOtpChallengeStore>();
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
+        services.AddScoped<InactiveAccountCleanupJob>();
+        services.AddSingleton<EmailTemplateRenderer>();
+        services.AddHostedService<HangfireRecurringJobRegistrar>();
+
+        services.AddMessagingBus(configuration, configurator =>
+        {
+            configurator.AddConsumer<UserRegistrationOtpRequestedConsumer>();
+            configurator.AddConsumer<PasswordResetRequestedConsumer>();
+            configurator.AddConsumer<PasswordChangeRequestedConsumer>();
+            configurator.AddConsumer<TeacherSynchronizationRequestedConsumer>();
+            configurator.AddConsumer<StudentSynchronizationRequestedConsumer>();
+        });
+
+        var outbox = configuration.GetSection(OutboxOptions.SectionName);
+        services.AddSingleton(new OutboxOptions
+        {
+            PollingIntervalSeconds = int.TryParse(outbox["PollingIntervalSeconds"], out var interval) ? interval : 5,
+            BatchSize = int.TryParse(outbox["BatchSize"], out var batchSize) ? batchSize : 50,
+            MaxAttempts = int.TryParse(outbox["MaxAttempts"], out var maxAttempts) ? maxAttempts : 10
+        });
+        services.AddHostedService<OutboxDispatcher>();
+
+        return services;
+    }
+}

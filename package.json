@@ -1,0 +1,11 @@
+{
+  "name": "toeic-space-api-tests",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "test:classroom-api": "node scripts/run-classroom-api-newman.mjs"
+  },
+  "devDependencies": {
+    "newman": "6.2.3"
+  }
+}

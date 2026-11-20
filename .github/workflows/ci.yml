@@ -1,0 +1,107 @@
+name: TOEICSpace LMS Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build, test and validate migrations (.NET 10)
+    runs-on: ubuntu-latest
+    env:
+      CLASSROOM_TESTS: tests/Services/Classroom/ToeicSpace.Classroom.Tests/ToeicSpace.Classroom.Tests.csproj
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # The Classroom test project is currently outside ToeicSpace.slnx.
+      - name: Restore and build
+        run: |
+          dotnet restore ToeicSpace.slnx
+          dotnet restore "$CLASSROOM_TESTS"
+          dotnet build ToeicSpace.slnx --configuration Release --no-restore
+          dotnet build "$CLASSROOM_TESTS" --configuration Release --no-restore
+
+      - name: Run solution tests
+        run: >
+          dotnet test ToeicSpace.slnx --configuration Release --no-build
+          --collect:"XPlat Code Coverage" --logger trx
+          --results-directory artifacts/tests/solution
+
+      - name: Run Classroom tests
+        run: >
+          dotnet test "$CLASSROOM_TESTS" --configuration Release --no-build
+          --logger trx --results-directory artifacts/tests/classroom
+
+      - name: Upload test results and coverage
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/tests/
+          if-no-files-found: ignore
+
+      - name: Install EF Core CLI
+        run: dotnet tool install dotnet-ef --tool-path "$RUNNER_TEMP/ef-tools" --version 9.0.11
+
+      - name: Generate idempotent MySQL migration scripts
+        run: |
+          mkdir -p artifacts/migrations
+          for service in Identity Classroom Assessment Content Payment; do
+            project="src/Services/$service/ToeicSpace.$service.Infrastructure"
+            output="$GITHUB_WORKSPACE/artifacts/migrations/$service.sql"
+            (
+              cd "$project"
+              export "ConnectionStrings__${service}Database=Server=127.0.0.1;Database=lms_ci_${service,,};User=ci;Password=ci_only;"
+              "$RUNNER_TEMP/ef-tools/dotnet-ef" migrations script --idempotent \
+                --context "${service}DbContext" --project . --startup-project . \
+                --configuration Release --no-build --output "$output"
+              test -s "$output"
+            )
+          done
+
+      - name: Upload migration scripts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mysql-migrations
+          path: artifacts/migrations/*.sql
+
+  docker-build:
+    name: Build Docker image (${{ matrix.image }})
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: identity-api
+            dockerfile: src/Services/Identity/ToeicSpace.Identity.API/Dockerfile
+          - image: classroom-api
+            dockerfile: src/Services/Classroom/ToeicSpace.Classroom.API/Dockerfile
+          - image: assessment-api
+            dockerfile: src/Services/Assessment/ToeicSpace.Assessment.API/Dockerfile
+          - image: content-api
+            dockerfile: src/Services/Content/ToeicSpace.Content.API/Dockerfile
+          - image: payment-api
+            dockerfile: src/Services/Payment/ToeicSpace.Payment.API/Dockerfile
+          - image: api-gateway
+            dockerfile: src/ApiGateways/ToeicSpace.ApiGateway/Dockerfile
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          tags: toeicspace-lms/${{ matrix.image }}:ci-test
+          push: false
