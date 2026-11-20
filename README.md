@@ -1,8 +1,4 @@
-# TOEICSpace LMS backend
-
-See the [LMS architecture, tuition API and developer handoff](docs/lms-handoff.md) for the current contracts and environment setup.
-
-<h1 align="center">TOEICSpace Backend</h1>
+<h1 align="center">TOEICSpace LMS</h1>
 
 <p align="center">
   <img alt=".NET" src="https://img.shields.io/badge/.NET-10.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white" />
