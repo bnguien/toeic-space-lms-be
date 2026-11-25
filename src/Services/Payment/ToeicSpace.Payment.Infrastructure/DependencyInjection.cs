@@ -1,3 +1,5 @@
+using ToeicSpace.BuildingBlocks.Persistence;
+using ToeicSpace.BuildingBlocks.Messaging.MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +22,8 @@ public static class DependencyInjection
         services.AddScoped<IPaymentReadRepository, PaymentReadRepository>();
         services.AddScoped<ITuitionOrders, TuitionOrders>();
         services.AddScoped<ISePayWebhookProcessor, SePayWebhookProcessor>();
+        services.AddMessagingBus(config);
+        services.AddHostedService<LmsOutboxDispatcher<PaymentDbContext>>();
         return services;
     }
 }

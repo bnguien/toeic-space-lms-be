@@ -23,7 +23,8 @@ public sealed class TeacherIntegrationOutboxTests
 
         stored.Version.Should().Be(2);
         var outbox = await context.Db.OutboxMessages.OrderBy(x => x.OccurredOn).ToListAsync();
-        outbox.Should().HaveCount(4);
+        outbox.Should().ContainSingle(x => x.Type.Contains(nameof(ActiveAccountCreatedIntegrationEvent)));
+        outbox.Where(x => !x.Type.Contains(nameof(ActiveAccountCreatedIntegrationEvent))).Should().HaveCount(4);
         var teacherMessage = outbox.Last(x => x.Type.Contains(nameof(TeacherChangedIntegrationEvent)));
         var message = JsonSerializer.Deserialize<TeacherChangedIntegrationEvent>(teacherMessage.Content, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         message.Should().NotBeNull();
@@ -42,7 +43,8 @@ public sealed class TeacherIntegrationOutboxTests
         await new TeacherSynchronizationRequestedConsumer(context.Db).SynchronizeAsync();
 
         var messages = await context.Db.OutboxMessages.ToListAsync();
-        messages.Should().HaveCount(3);
+        messages.Should().ContainSingle(x => x.Type.Contains(nameof(ActiveAccountCreatedIntegrationEvent)));
+        messages.Where(x => !x.Type.Contains(nameof(ActiveAccountCreatedIntegrationEvent))).Should().HaveCount(3);
         messages.Should().Contain(x => x.Content.Contains(user.Id.ToString(), StringComparison.OrdinalIgnoreCase));
     }
 }

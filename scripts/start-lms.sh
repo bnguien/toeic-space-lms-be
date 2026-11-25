@@ -12,11 +12,11 @@ if (( $# > 0 )); then
   env_file=$2
 fi
 compose=(docker compose --env-file "$env_file" -f docker-compose.yml -p toeic-space-lms-be --profile full)
-dbs=(identity-db classroom-db assessment-db content-db payment-db)
+dbs=(identity-db classroom-db assessment-db content-db payment-db notification-db)
 
 if (( $# == 0 )); then
   missing=()
-  for service in IDENTITY CLASSROOM ASSESSMENT CONTENT PAYMENT; do
+  for service in IDENTITY CLASSROOM ASSESSMENT CONTENT PAYMENT NOTIFICATION; do
     for field in NAME PORT USER PASSWORD ROOT_PASSWORD; do
       key="${service}_DB_${field}"
       if [[ -z "${!key:-}" ]]; then missing+=("$key"); fi
@@ -30,7 +30,7 @@ if (( $# == 0 )); then
     exit 2
   fi
 
-  for service in IDENTITY CLASSROOM ASSESSMENT CONTENT PAYMENT; do
+  for service in IDENTITY CLASSROOM ASSESSMENT CONTENT PAYMENT NOTIFICATION; do
     key="${service}_DB_NAME"
     printf '%s database: %s\n' "$service" "${!key}"
   done

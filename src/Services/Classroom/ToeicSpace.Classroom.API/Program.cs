@@ -54,6 +54,7 @@ if (seedClassroomDemo)
 
     await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<ClassroomDbContext>();
+    db.SuppressActivityEvents = true;
     await db.Database.MigrateAsync();
     var report = await scope.ServiceProvider.GetRequiredService<ClassroomDemoSeeder>().SeedAsync();
     Console.WriteLine($"Classroom demo seed complete: {report.Centers} centers, {report.Rooms} rooms, " +

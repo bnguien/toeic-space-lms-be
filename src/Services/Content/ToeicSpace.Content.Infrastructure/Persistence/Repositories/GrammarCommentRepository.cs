@@ -1,3 +1,5 @@
+using ToeicSpace.BuildingBlocks.Persistence;
+using ToeicSpace.BuildingBlocks.Messaging.Events;
 using Microsoft.EntityFrameworkCore;
 using ToeicSpace.Content.Application.Interfaces.Repositories;
 using ToeicSpace.Content.Domain.Entities;
@@ -43,7 +45,13 @@ public sealed class GrammarCommentRepository(ContentDbContext db) : IGrammarComm
         PersistenceExceptionTranslator.ExecuteAsync(() =>
             db.GrammarCommentLikes.FirstOrDefaultAsync(l => l.CommentId == commentId && l.LearnerId == learnerId, ct));
 
-    public void Add(GrammarComment comment) => db.GrammarComments.Add(comment);
+    public void Add(GrammarComment comment, Guid? replyRecipient = null)
+    {
+        db.GrammarComments.Add(comment);
+        if (replyRecipient.HasValue)
+            LmsOutboxMessage.Add(db, new LmsActivityIntegrationEvent(LmsActivity.GrammarCommentReplied,
+                [replyRecipient.Value], null, $"Chủ đề: {comment.Target}"));
+    }
     public void AddLike(GrammarCommentLike like) => db.GrammarCommentLikes.Add(like);
     public void RemoveLike(GrammarCommentLike like) => db.GrammarCommentLikes.Remove(like);
 

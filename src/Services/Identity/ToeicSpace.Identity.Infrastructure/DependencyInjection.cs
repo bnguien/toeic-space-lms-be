@@ -164,6 +164,7 @@ public static class DependencyInjection
 
         services.AddMessagingBus(configuration, configurator =>
         {
+            configurator.AddConsumer<PaymentReconciliationConsumer>();
             configurator.AddConsumer<UserRegistrationOtpRequestedConsumer>();
             configurator.AddConsumer<PasswordResetRequestedConsumer>();
             configurator.AddConsumer<PasswordChangeRequestedConsumer>();

@@ -11,4 +11,8 @@
     <PackageReference Include="Hangfire.MySqlStorage" Version="2.0.3"/>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.11"><PrivateAssets>all</PrivateAssets></PackageReference>
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ToeicSpace.Classroom.Tests" />
+    <Compile Include="../../../BuildingBlocks/SharedOutbox/LmsOutbox.cs" Link="Messaging/LmsOutbox.cs" />
+  </ItemGroup>
 </Project>

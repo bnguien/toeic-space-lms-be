@@ -10,7 +10,8 @@ case "${1:-Assessment}" in
   Classroom|classroom) area=Classroom ;;
   Payment|payment) area=Payment ;;
   Content|content) area=Content ;;
-  *) echo 'Usage: docker compose --profile tools run --rm migrations [All|Assessment|Identity|Classroom|Content|Payment]' >&2; exit 2 ;;
+  Notification|notification) area=Notification ;;
+  *) echo 'Usage: docker compose --profile tools run --rm migrations [All|Assessment|Identity|Classroom|Content|Payment|Notification]' >&2; exit 2 ;;
 esac
 if [[ "$#" -gt 1 ]]; then
   echo 'Only a service name is accepted; this command only updates to the latest migration.' >&2
@@ -19,7 +20,7 @@ fi
 
 areas=("$area")
 if [[ "$area" == All ]]; then
-  areas=(Identity Classroom Assessment Content Payment)
+  areas=(Identity Classroom Assessment Content Payment Notification)
 fi
 for area in "${areas[@]}"; do
   connection_key="ConnectionStrings__${area}Database"

@@ -6,7 +6,7 @@ services:
 
   messagebroker:
     image: rabbitmq:4-management
-    profiles: ["identity", "classroom", "full"]
+    profiles: ["identity", "classroom", "content", "payment", "notification", "full"]
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
@@ -34,7 +34,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    profiles: ["identity", "classroom", "full"]
+    profiles: ["identity", "classroom", "notification", "full"]
     restart: always
     ports:
       - "${REDIS_PORT}:6379"
@@ -352,6 +352,8 @@ services:
         Server=classroom-db;Port=3306;Database=${CLASSROOM_DB_NAME};User=${CLASSROOM_DB_USER};Password=${CLASSROOM_DB_PASSWORD};
       ConnectionStrings__ContentDatabase: >-
         Server=content-db;Port=3306;Database=${CONTENT_DB_NAME};User=${CONTENT_DB_USER};Password=${CONTENT_DB_PASSWORD};
+      ConnectionStrings__NotificationDatabase: >-
+        Server=${NOTIFICATION_DB_HOST:-notification-db};Port=3306;Database=${NOTIFICATION_DB_NAME:-toeic_space_lms_notification};User=${NOTIFICATION_DB_USER:-notification_user};Password=${NOTIFICATION_DB_PASSWORD:-};
       ConnectionStrings__PaymentDatabase: >-
         Server=payment-db;Port=3306;Database=${PAYMENT_DB_NAME};User=${PAYMENT_DB_USER};Password=${PAYMENT_DB_PASSWORD};
     volumes:
@@ -393,6 +395,9 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       ASPNETCORE_HTTP_PORTS: 8080
       ConnectionStrings__ContentDatabase: Server=content-db;Port=3306;Database=${CONTENT_DB_NAME};User=${CONTENT_DB_USER};Password=${CONTENT_DB_PASSWORD};
+      RabbitMQ__Host: messagebroker
+      RabbitMQ__Username: ${RABBITMQ_USER}
+      RabbitMQ__Password: ${RABBITMQ_PASSWORD}
       Jwt__Issuer: ${JWT_ISSUER}
       Jwt__Audience: ${JWT_AUDIENCE}
       Jwt__PublicKey: ${JWT_PUBLIC_KEY}
@@ -408,6 +413,8 @@ services:
       Gemini__BatchModel: ${FLASHCARD_AI_MODEL}
       GoogleTranslate__ApiKey: ${GOOGLE_TRANSLATE_API_KEY}
     depends_on:
+      messagebroker:
+        condition: service_healthy
       content-db:
         condition: service_healthy
     ports:
@@ -449,6 +456,9 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       ASPNETCORE_HTTP_PORTS: 8080
       ConnectionStrings__PaymentDatabase: Server=payment-db;Port=3306;Database=${PAYMENT_DB_NAME};User=${PAYMENT_DB_USER};Password=${PAYMENT_DB_PASSWORD};
+      RabbitMQ__Host: messagebroker
+      RabbitMQ__Username: ${RABBITMQ_USER}
+      RabbitMQ__Password: ${RABBITMQ_PASSWORD}
       Jwt__Issuer: ${JWT_ISSUER}
       Jwt__Audience: ${JWT_AUDIENCE}
       Jwt__PublicKey: ${JWT_PUBLIC_KEY}
@@ -457,6 +467,8 @@ services:
       SePay__AccountNumber: ${SEPAY_ACCOUNT_NUMBER:-}
       SePay__WebhookApiKey: ${SEPAY_WEBHOOK_API_KEY:-}
     depends_on:
+      messagebroker:
+        condition: service_healthy
       payment-db:
         condition: service_healthy
     ports:
@@ -519,9 +531,66 @@ services:
       - backend-network
 
 
+  notification-db:
+    image: mysql:8.4
+    profiles: ["notification", "full"]
+    environment:
+      MYSQL_DATABASE: ${NOTIFICATION_DB_NAME}
+      MYSQL_USER: ${NOTIFICATION_DB_USER}
+      MYSQL_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${NOTIFICATION_DB_ROOT_PASSWORD}
+    ports:
+      - "${NOTIFICATION_DB_PORT:-3311}:3306"
+    volumes:
+      - notification_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u "$$MYSQL_USER" --database="$$MYSQL_DATABASE" -e "SELECT 1" >/dev/null']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend-network
+
+  notification-api:
+    <<: &notification-common
+      image: toeicspace-lms/notification-api
+      build:
+        context: .
+        dockerfile: src/Services/Notification/ToeicSpace.Notification.API/Dockerfile
+      environment:
+        ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+        ASPNETCORE_HTTP_PORTS: 8080
+        SignalR__Mode: ${NOTIFICATION_SIGNALR_MODE:-Redis}
+        SignalR__ChannelPrefix: ${NOTIFICATION_SIGNALR_PREFIX:-${COMPOSE_PROJECT_NAME}-notification}
+        ConnectionStrings__Redis: ${NOTIFICATION_REDIS_CONNECTION:-redis:6379}
+        ConnectionStrings__NotificationDatabase: >-
+          Server=${NOTIFICATION_DB_HOST:-notification-db};Port=3306;Database=${NOTIFICATION_DB_NAME:-toeic_space_lms_notification};User=${NOTIFICATION_DB_USER:-notification_user};Password=${NOTIFICATION_DB_PASSWORD:-};
+        RabbitMQ__Host: messagebroker
+        RabbitMQ__Username: ${RABBITMQ_USER}
+        RabbitMQ__Password: ${RABBITMQ_PASSWORD}
+        Jwt__Issuer: ${JWT_ISSUER}
+        Jwt__Audience: ${JWT_AUDIENCE}
+        Jwt__PublicKey: ${JWT_PUBLIC_KEY}
+      depends_on:
+        notification-db:
+          condition: service_healthy
+        messagebroker:
+          condition: service_healthy
+      networks:
+        - backend-network
+
+    profiles: ["notification", "full"]
+    ports:
+      - "${NOTIFICATION_API_PORT:-6007}:8080"
+
+  notification-api-b:
+    <<: *notification-common
+    profiles: ["notification-scale"]
+    ports: []
+
   api-gateway:
     image: toeicspace-lms/api-gateway
-    profiles: ["identity", "assessment", "classroom", "content", "payment", "full"]
+    profiles: ["identity", "assessment", "classroom", "content", "payment", "notification", "full"]
     build:
       context: .
       dockerfile: src/ApiGateways/ToeicSpace.ApiGateway/Dockerfile
@@ -536,6 +605,8 @@ services:
       ReverseProxy__Clusters__classroom-cluster__Destinations__destination1__Address: http://classroom-api:8080/
       ReverseProxy__Clusters__content-cluster__Destinations__destination1__Address: http://content-api:8080/
       ReverseProxy__Clusters__payment-cluster__Destinations__destination1__Address: http://payment-api:8080/
+      ReverseProxy__Clusters__notification-cluster__Destinations__destination1__Address: http://notification-api:8080/
+      NotificationReplicaB: ${NOTIFICATION_REPLICA_B:-false}
       ForwardedHeaders__KnownNetworks__0: ${TRUSTED_PROXY_NETWORK}
 
     ports:
@@ -567,5 +638,6 @@ volumes:
   classroom_db_data:
   content_db_data:
   payment_db_data:
+  notification_db_data:
   rabbitmq_data:
   redis_data:

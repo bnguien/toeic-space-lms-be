@@ -19,6 +19,19 @@ string[] credentialEndpoints =
 
 var builder = WebApplication.CreateBuilder(args);
 
+// SignalR browser transports can include credentials in the request query.
+builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
+builder.Logging.AddFilter("Yarp.ReverseProxy.Forwarder.HttpForwarder", LogLevel.Warning);
+
+if (builder.Configuration.GetValue<bool>("NotificationReplicaB"))
+{
+    const string cluster = "ReverseProxy:Clusters:notification-cluster:";
+    builder.Configuration[cluster + "Destinations:destination2:Address"] = "http://notification-api-b:8080/";
+    builder.Configuration[cluster + "SessionAffinity:Enabled"] = "true";
+    builder.Configuration[cluster + "SessionAffinity:Policy"] = "Cookie";
+    builder.Configuration[cluster + "SessionAffinity:AffinityKeyName"] = "NotificationAffinity";
+}
+
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>()
@@ -39,7 +52,7 @@ builder.Services.AddCors(options =>
         }
 
         policy.WithOrigins(allowedOrigins)
-            .WithHeaders("Content-Type", "Authorization", CsrfHeaderName)
+            .WithHeaders("Content-Type", "Authorization", CsrfHeaderName, "X-Requested-With", "X-SignalR-User-Agent")
             .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
             .AllowCredentials()
             .SetPreflightMaxAge(TimeSpan.FromMinutes(10));

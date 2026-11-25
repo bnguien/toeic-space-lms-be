@@ -22,6 +22,37 @@ namespace ToeicSpace.Classroom.Infrastructure.Persistence.Migrations
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
+            modelBuilder.Entity("ToeicSpace.BuildingBlocks.Persistence.LmsOutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Contract")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("OccurredOn")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("ProcessedOn")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProcessedOn", "OccurredOn");
+
+                    b.ToTable("LmsOutboxMessages", (string)null);
+                });
+
             modelBuilder.Entity("ToeicSpace.Classroom.Domain.Entities.AttendanceAudit", b =>
                 {
                     b.Property<Guid>("Id")

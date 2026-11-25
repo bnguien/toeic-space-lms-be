@@ -1,9 +1,10 @@
+using ToeicSpace.BuildingBlocks.Persistence;
 using Microsoft.EntityFrameworkCore;
 using ToeicSpace.Classroom.Domain.Entities;
 
 namespace ToeicSpace.Classroom.Infrastructure.Persistence;
 
-public sealed class ClassroomDbContext(DbContextOptions<ClassroomDbContext> options) : DbContext(options)
+public sealed partial class ClassroomDbContext(DbContextOptions<ClassroomDbContext> options) : DbContext(options)
 {
     public DbSet<Class> Classes => Set<Class>();
     public DbSet<ClassInstructor> ClassInstructors => Set<ClassInstructor>();
@@ -23,6 +24,7 @@ public sealed class ClassroomDbContext(DbContextOptions<ClassroomDbContext> opti
     public DbSet<SessionMeetProvisioning> SessionMeetProvisionings => Set<SessionMeetProvisioning>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        LmsOutboxMessage.Configure(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ClassroomDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
     }

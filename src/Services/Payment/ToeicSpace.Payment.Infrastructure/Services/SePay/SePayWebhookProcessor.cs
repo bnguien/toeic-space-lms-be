@@ -1,3 +1,5 @@
+using ToeicSpace.BuildingBlocks.Persistence;
+using ToeicSpace.BuildingBlocks.Messaging.Events;
 using ToeicSpace.Payment.Application.DTOs.SePay;
 using ToeicSpace.Payment.Application.Interfaces.Services;
 using ToeicSpace.Payment.Domain.Exceptions;
@@ -60,10 +62,11 @@ public sealed partial class SePayWebhookProcessor(PaymentDbContext db,
         if (status == TransactionStatus.Matched && order is not null)
         {
             order.Apply(TuitionEntryKind.SePay, webhook.TransferAmount);
+            TuitionOrders.NotifyEntry(db, order, TuitionEntryKind.SePay, webhook.TransferAmount);
             db.Add(new TuitionEntry { Id = Guid.NewGuid(), PaymentOrderId = order.PaymentOrderId,
                 Kind = TuitionEntryKind.SePay, Amount = webhook.TransferAmount, SePayId = webhook.Id });
         }
-        db.Transactions.Add(new PaymentTransaction
+        var transaction = new PaymentTransaction
         {
             SePayId = webhook.Id, TuitionOrderId = order?.PaymentOrderId, PaymentReference = reference,
             BankReferenceCode = webhook.ReferenceCode?[..Math.Min(webhook.ReferenceCode.Length, 128)],
@@ -71,7 +74,10 @@ public sealed partial class SePayWebhookProcessor(PaymentDbContext db,
             AccountNumber = (webhook.AccountNumber ?? "")[..Math.Min(webhook.AccountNumber?.Length ?? 0, 64)],
             Amount = webhook.TransferAmount,
             TransactionAt = at == DateTime.MinValue ? DateTime.UtcNow : at, ReceivedAt = DateTime.UtcNow, Status = status
-        });
+        };
+        db.Transactions.Add(transaction);
+        if (status is TransactionStatus.Unmatched or TransactionStatus.Ambiguous or TransactionStatus.Overpaid)
+            LmsOutboxMessage.Add(db, new PaymentReconciliationRequested(transaction.Id, DateTime.UtcNow, transaction.Id));
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         log?.LogInformation("SePay webhook transaction {SePayId} recorded as {Status} for order {OrderId}.",

@@ -1,3 +1,5 @@
+using ToeicSpace.BuildingBlocks.Persistence;
+using ToeicSpace.BuildingBlocks.Messaging.MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
@@ -61,6 +63,8 @@ public static class DependencyInjection
         services.AddVideoInfrastructure();
         services.AddGrammar(configuration);
         services.AddAnalytics();
+        services.AddMessagingBus(configuration);
+        services.AddHostedService<LmsOutboxDispatcher<ContentDbContext>>();
         return services;
     }
 

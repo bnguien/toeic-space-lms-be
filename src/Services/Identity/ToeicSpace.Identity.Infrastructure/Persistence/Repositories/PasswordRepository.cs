@@ -1,3 +1,4 @@
+using ToeicSpace.BuildingBlocks.Messaging.Events;
 using ToeicSpace.Identity.Application.Interfaces.Persistence;
 using ToeicSpace.Identity.Domain.Enums;
 
@@ -23,6 +24,8 @@ public sealed class PasswordRepository(IdentityDbContext dbContext) : IPasswordR
         await dbContext.UserTokens.Where(token => token.UserId == userId && !token.IsRevoked)
             .ExecuteUpdateAsync(setters => setters.SetProperty(token => token.IsRevoked, true),
                 cancellationToken);
+        dbContext.EnqueueIntegrationEvent(new LmsActivityIntegrationEvent(LmsActivity.PasswordChanged, [userId], userId, ""));
+        await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
     }

@@ -34,6 +34,12 @@
     <Project Path="src/Services/Identity/ToeicSpace.Identity.Domain/ToeicSpace.Identity.Domain.csproj" />
     <Project Path="src/Services/Identity/ToeicSpace.Identity.Infrastructure/ToeicSpace.Identity.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Services/Notification/">
+    <Project Path="src/Services/Notification/ToeicSpace.Notification.API/ToeicSpace.Notification.API.csproj" />
+    <Project Path="src/Services/Notification/ToeicSpace.Notification.Application/ToeicSpace.Notification.Application.csproj" />
+    <Project Path="src/Services/Notification/ToeicSpace.Notification.Domain/ToeicSpace.Notification.Domain.csproj" />
+    <Project Path="src/Services/Notification/ToeicSpace.Notification.Infrastructure/ToeicSpace.Notification.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Services/Payment/">
     <Project Path="src/Services/Payment/ToeicSpace.Payment.API/ToeicSpace.Payment.API.csproj" />
     <Project Path="src/Services/Payment/ToeicSpace.Payment.Application/ToeicSpace.Payment.Application.csproj" />
@@ -50,6 +56,9 @@
   </Folder>
   <Folder Name="/tests/Services/Identity/">
     <Project Path="tests/Services/Identity/ToeicSpace.Identity.Application.Tests/ToeicSpace.Identity.Application.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Services/Notification/">
+    <Project Path="tests/Services/Notification/ToeicSpace.Notification.Tests/ToeicSpace.Notification.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Services/Payment/">
     <Project Path="tests/Services/Payment/ToeicSpace.Payment.Tests/ToeicSpace.Payment.Tests.csproj" />

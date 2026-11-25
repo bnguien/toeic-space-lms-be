@@ -5,6 +5,7 @@ namespace ToeicSpace.Classroom.Application.Features.Enrollments.Commands.EnrollS
 
 public sealed record EnrollStudentCommand(Guid StudentId) : IRequest<ClassEnrollmentDto>
 {
+    [JsonIgnore] public bool NotifyTeacher { get; init; } = true;
     [JsonIgnore] public Guid ClassId { get; set; }
     [JsonIgnore] public Guid AdminId { get; set; }
 }

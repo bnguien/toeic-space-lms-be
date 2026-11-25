@@ -16,6 +16,7 @@ public sealed class ImportStudentsHandler(IClassRepository classes, IServiceScop
         if (!classroom.CanManageEnrollments()) throw ClassRuleException.InvalidState();
 
         var results = new List<ImportStudentRowResult>(request.Rows.Count);
+        var notifyTeacher = true;
         foreach (var row in request.Rows)
         {
             ct.ThrowIfCancellationRequested();
@@ -62,7 +63,8 @@ public sealed class ImportStudentsHandler(IClassRepository classes, IServiceScop
                 }
                 var sender = scope.ServiceProvider.GetRequiredService<ISender>();
                 var enrollment = await sender.Send(new EnrollStudentCommand(studentId.Value)
-                    { ClassId = request.ClassId, AdminId = request.AdminId }, ct);
+                    { ClassId = request.ClassId, AdminId = request.AdminId, NotifyTeacher = notifyTeacher }, ct);
+                notifyTeacher = false;
                 results.Add(new ImportStudentRowResult(row.RowNumber, studentId, enrollment.Id, null, null));
             }
             catch (ClassRuleException ex)
