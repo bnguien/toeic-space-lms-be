@@ -1,3 +1,4 @@
+using ToeicSpace.BuildingBlocks.Persistence;
 using Microsoft.EntityFrameworkCore;
 using ToeicSpace.Payment.Domain.Entities;
 
@@ -10,6 +11,9 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
     public DbSet<PurchaseOrder> Orders => Set<PurchaseOrder>();
     public DbSet<PaymentTransaction> Transactions => Set<PaymentTransaction>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        LmsOutboxMessage.Configure(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(PaymentDbContext).Assembly);
+    }
 }

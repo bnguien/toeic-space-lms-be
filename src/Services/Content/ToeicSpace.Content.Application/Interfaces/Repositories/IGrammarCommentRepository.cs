@@ -15,7 +15,7 @@ public interface IGrammarCommentRepository
     Task<GrammarComment?> GetLatestByLearnerAsync(Guid learnerId, CancellationToken ct);
     Task<IReadOnlySet<long>> LikedIdsAsync(Guid learnerId, IReadOnlyCollection<long> commentIds, CancellationToken ct);
     Task<GrammarCommentLike?> GetLikeAsync(long commentId, Guid learnerId, CancellationToken ct);
-    void Add(GrammarComment comment);
+    void Add(GrammarComment comment, Guid? replyRecipient = null);
     void AddLike(GrammarCommentLike like);
     void RemoveLike(GrammarCommentLike like);
     Task AdjustLikeCountAsync(long commentId, int delta, CancellationToken ct);

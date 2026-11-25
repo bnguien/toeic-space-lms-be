@@ -1,3 +1,5 @@
+using ToeicSpace.BuildingBlocks.Persistence;
+using ToeicSpace.BuildingBlocks.Messaging.Events;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
@@ -20,6 +22,8 @@ public sealed class TuitionOrders(PaymentDbContext db, IConfiguration config) : 
             ClassId = r.ClassId, ClassEnrollmentId = r.ClassEnrollmentId, AmountOwed = r.AmountOwed,
             PaymentReference = "TL" + Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(8)) };
         db.Add(order);
+        LmsOutboxMessage.Add(db, new LmsActivityIntegrationEvent(LmsActivity.TuitionCreated, [order.StudentId],
+            order.PaymentOrderId, $"Số tiền phải đóng: {order.AmountOwed:0} đồng."));
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException e) when (e.InnerException is MySqlException { Number: 1062 })
         {
@@ -49,11 +53,20 @@ public sealed class TuitionOrders(PaymentDbContext db, IConfiguration config) : 
             return order;
         }
         order.Apply(r.Kind, r.Amount);
+        NotifyEntry(db, order, r.Kind, r.Amount);
         db.Add(new TuitionEntry { Id = r.EntryId, PaymentOrderId = r.OrderId, Kind = r.Kind,
             Amount = r.Amount, RecordedBy = r.AdminId });
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return order;
+    }
+
+    internal static void NotifyEntry(PaymentDbContext db, TuitionOrder order, TuitionEntryKind kind, decimal amount)
+    {
+        var activity = kind == TuitionEntryKind.Waiver ? LmsActivity.TuitionWaived : LmsActivity.TuitionPaymentRecorded;
+        var balance = order.RemainingBalance == 0 ? "Đã hoàn tất học phí." : $"Còn phải đóng: {order.RemainingBalance:0} đồng.";
+        LmsOutboxMessage.Add(db, new LmsActivityIntegrationEvent(activity, [order.StudentId],
+            order.PaymentOrderId, $"Số tiền: {amount:0} đồng. {balance}"));
     }
 
     public async Task<TuitionStatement> Get(GetTuitionOrder r, CancellationToken ct)

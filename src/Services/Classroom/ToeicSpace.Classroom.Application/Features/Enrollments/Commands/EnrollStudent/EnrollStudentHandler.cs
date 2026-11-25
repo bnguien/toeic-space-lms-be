@@ -42,7 +42,7 @@ public sealed class EnrollStudentHandler(
         };
         // Claim the class concurrency token so archive/delete cannot race this enrollment.
         entity.Touch(request.AdminId, now);
-        enrollments.Add(enrollment);
+        enrollments.Add(enrollment, request.NotifyTeacher ? entity.Instructors.SingleOrDefault(x => x.UnassignedAt == null)?.TeacherId : null, entity.Name);
         await unitOfWork.SaveChangesAsync(ct);
         logger.LogInformation("Enrollment {EnrollmentId} created for student {StudentId} in class {ClassId} by {AdminId}",
             enrollment.Id, request.StudentId, entity.Id, request.AdminId);

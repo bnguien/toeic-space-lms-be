@@ -1,3 +1,6 @@
+using System.Text.Json;
+using ToeicSpace.BuildingBlocks.Messaging.Events;
+using ToeicSpace.BuildingBlocks.Persistence;
 using System.Text;
 using ClosedXML.Excel;
 using MediatR;
@@ -44,6 +47,35 @@ public sealed class EnrollmentImportTests
         services.AddSingleton(TimeProvider.System);
         services.AddApplicationServices();
         return services.BuildServiceProvider();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Enrollment_batch_stages_only_successful_students_and_one_teacher_notice(bool bulk)
+    {
+        await using var provider = Services(Guid.NewGuid().ToString());
+        var (classId, first, second) = await SeedAsync(provider);
+        var teacher = Guid.NewGuid();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ClassroomDbContext>();
+        db.ClassInstructors.Add(new ClassInstructor { ClassId = classId, TeacherId = teacher });
+        await db.SaveChangesAsync();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        Guid[] ids = [Guid.NewGuid(), first, first, second];
+        if (bulk)
+            await sender.Send(new BulkEnrollStudentsCommand(ids) { ClassId = classId, AdminId = AdminId });
+        else
+            await sender.Send(new ImportStudentsCommand(classId, AdminId, ids.Select((id, i) =>
+                new EnrollmentImportRow(i + 1, id.ToString(), null)).ToArray()));
+
+        var payloads = await db.Set<LmsOutboxMessage>().Select(x => x.Payload).ToArrayAsync();
+        var messages = payloads.Select(x => JsonSerializer.Deserialize<LmsActivityIntegrationEvent>(x)!).ToArray();
+        Assert.Equal(new[] { first, second }.Order(), messages.Where(x => x.Activity == LmsActivity.StudentEnrolled)
+            .Select(x => Assert.Single(x.RecipientIds)).Order());
+        var notice = Assert.Single(messages, x => x.Activity == LmsActivity.StudentsJoined);
+        Assert.Equal(teacher, Assert.Single(notice.RecipientIds));
+        Assert.Equal(classId, notice.RelatedEntityId);
     }
 
     [Fact]

@@ -56,12 +56,12 @@ jobs:
       - name: Generate idempotent MySQL migration scripts
         run: |
           mkdir -p artifacts/migrations
-          for service in Identity Classroom Assessment Content Payment; do
+          for service in Identity Classroom Assessment Content Payment Notification; do
             project="src/Services/$service/ToeicSpace.$service.Infrastructure"
             output="$GITHUB_WORKSPACE/artifacts/migrations/$service.sql"
             (
               cd "$project"
-              export "ConnectionStrings__${service}Database=Server=127.0.0.1;Database=lms_ci_${service,,};User=ci;Password=ci_only;"
+              export "ConnectionStrings__${service}Database=Server=127.0.0.1;Database=lms_ci_${service,,};User=ci;"
               "$RUNNER_TEMP/ef-tools/dotnet-ef" migrations script --idempotent \
                 --context "${service}DbContext" --project . --startup-project . \
                 --configuration Release --no-build --output "$output"
@@ -74,6 +74,84 @@ jobs:
         with:
           name: mysql-migrations
           path: artifacts/migrations/*.sql
+
+  notification-integration:
+    name: Notification integration (MySQL and RabbitMQ)
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=3s --health-retries=10
+    env:
+      NOTIFICATION_TEST_REDIS: localhost:6379
+      NOTIFICATION_TEST_RABBITMQ_HOST: 127.0.0.1
+      NOTIFICATION_TEST_RABBITMQ_USER: ci
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start isolated MySQL and RabbitMQ for Notification tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MYSQL_ROOT_PASSWORD MYSQL_PASSWORD RABBITMQ_DEFAULT_PASS
+          MYSQL_ROOT_PASSWORD=$(openssl rand -hex 32)
+          MYSQL_PASSWORD=$(openssl rand -hex 32)
+          RABBITMQ_DEFAULT_PASS=$(openssl rand -hex 32)
+          for value in "$MYSQL_ROOT_PASSWORD" "$MYSQL_PASSWORD" "$RABBITMQ_DEFAULT_PASS"; do
+            echo "::add-mask::$value"
+          done
+
+          docker compose -p notification-ci -f - up -d --wait --wait-timeout 120 <<'COMPOSE'
+          services:
+            mysql:
+              image: mysql:8.4
+              environment:
+                MYSQL_ROOT_PASSWORD:
+                MYSQL_PASSWORD:
+                MYSQL_DATABASE: lms_ci_notification
+                MYSQL_USER: ci_notify
+              ports:
+                - "127.0.0.1:3306:3306"
+              healthcheck:
+                test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql --protocol=TCP -h 127.0.0.1 -u ci_notify lms_ci_notification -e 'SELECT 1'"]
+                interval: 5s
+                timeout: 5s
+                retries: 15
+                start_period: 20s
+            rabbitmq:
+              image: rabbitmq:4-management
+              environment:
+                RABBITMQ_DEFAULT_USER: ci
+                RABBITMQ_DEFAULT_PASS:
+              ports:
+                - "127.0.0.1:5672:5672"
+              healthcheck:
+                test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+                interval: 5s
+                timeout: 5s
+                retries: 15
+          COMPOSE
+
+          {
+            echo "NOTIFICATION_TEST_MYSQL=Server=127.0.0.1;Database=lms_ci_notification;User=ci_notify;Password=$MYSQL_PASSWORD;"
+            echo "NOTIFICATION_TEST_RABBITMQ_PASSWORD=$RABBITMQ_DEFAULT_PASS"
+          } >> "$GITHUB_ENV"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run Notification tests
+        env:
+          NOTIFICATION_TEST_REDIS_CONTAINER: ${{ job.services.redis.id }}
+        run: >
+          dotnet test tests/Services/Notification/ToeicSpace.Notification.Tests --configuration Release
+          --logger trx --results-directory artifacts/tests/notification
+      - name: Upload Notification test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-test-results
+          path: artifacts/tests/notification/
 
   docker-build:
     name: Build Docker image (${{ matrix.image }})
@@ -93,6 +171,8 @@ jobs:
             dockerfile: src/Services/Content/ToeicSpace.Content.API/Dockerfile
           - image: payment-api
             dockerfile: src/Services/Payment/ToeicSpace.Payment.API/Dockerfile
+          - image: notification-api
+            dockerfile: src/Services/Notification/ToeicSpace.Notification.API/Dockerfile
           - image: api-gateway
             dockerfile: src/ApiGateways/ToeicSpace.ApiGateway/Dockerfile
 

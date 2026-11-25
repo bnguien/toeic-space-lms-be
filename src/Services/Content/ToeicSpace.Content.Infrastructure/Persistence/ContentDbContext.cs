@@ -1,3 +1,4 @@
+using ToeicSpace.BuildingBlocks.Persistence;
 using Microsoft.EntityFrameworkCore;
 using ToeicSpace.Content.Domain.Entities;
 
@@ -48,6 +49,7 @@ public sealed class ContentDbContext(DbContextOptions<ContentDbContext> options)
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        LmsOutboxMessage.Configure(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ContentDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
     }

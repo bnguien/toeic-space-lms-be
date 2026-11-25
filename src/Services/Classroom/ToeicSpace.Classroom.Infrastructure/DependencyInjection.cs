@@ -1,3 +1,4 @@
+using ToeicSpace.BuildingBlocks.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -70,6 +71,7 @@ public static class DependencyInjection
         services.AddHostedService(sp => sp.GetRequiredService<TeacherSynchronizationRequester>());
         services.AddHostedService<StudentSynchronizationRequester>();
         if (enableJobs) services.AddHostedService<ClassAutoStartJob>();
+        services.AddHostedService<LmsOutboxDispatcher<ClassroomDbContext>>();
         return services;
     }
 }

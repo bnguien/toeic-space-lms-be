@@ -20,4 +20,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Include="../../../BuildingBlocks/SharedOutbox/LmsOutbox.cs" Link="Messaging/LmsOutbox.cs" />
+    <ProjectReference Include="../../../BuildingBlocks/ToeicSpace.BuildingBlocks.Messaging/ToeicSpace.BuildingBlocks.Messaging.csproj" />
+  </ItemGroup>
 </Project>

@@ -546,7 +546,7 @@ public sealed class ClassManagementTests
             return new PagedResult<EnrollmentWithStudent>(items.Select(x => new EnrollmentWithStudent(x, null, null)).ToArray(),
                 page, pageSize, count);
         }
-        public void Add(ClassEnrollment enrollment) => Set<ClassEnrollment>().Add(enrollment);
+        public void Add(ClassEnrollment enrollment, Guid? notifyTeacher, string className) => Set<ClassEnrollment>().Add(enrollment);
         public void Add(Class entity) => Set<Class>().Add(entity);
         public void Add(ClassInstructor entity) => Set<ClassInstructor>().Add(entity);
         public void Remove(Class entity) => Set<Class>().Remove(entity);

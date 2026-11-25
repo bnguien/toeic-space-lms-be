@@ -1,3 +1,5 @@
+using ToeicSpace.BuildingBlocks.Messaging.Events;
+using ToeicSpace.BuildingBlocks.Persistence;
 using Microsoft.EntityFrameworkCore;
 using ToeicSpace.Classroom.Application.Common.Pagination;
 using ToeicSpace.Classroom.Application.Interfaces.Repositories;
@@ -43,5 +45,11 @@ public sealed class EnrollmentRepository(ClassroomDbContext db) : IEnrollmentRep
             return new PagedResult<EnrollmentWithStudent>(items, page, pageSize, count);
         });
 
-    public void Add(ClassEnrollment enrollment) => db.ClassEnrollments.Add(enrollment);
+    public void Add(ClassEnrollment enrollment, Guid? notifyTeacher, string className)
+    {
+        db.ClassEnrollments.Add(enrollment);
+        if (notifyTeacher.HasValue)
+            LmsOutboxMessage.Add(db, new LmsActivityIntegrationEvent(LmsActivity.StudentsJoined,
+                [notifyTeacher.Value], enrollment.ClassId, $"Lớp: {className}."));
+    }
 }

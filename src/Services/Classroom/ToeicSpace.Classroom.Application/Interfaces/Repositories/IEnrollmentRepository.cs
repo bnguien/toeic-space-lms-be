@@ -13,5 +13,5 @@ public interface IEnrollmentRepository
     Task<ClassEnrollment?> GetByIdAsync(Guid classId, Guid enrollmentId, CancellationToken ct);
     Task<PagedResult<EnrollmentWithStudent>> ListAsync(Guid classId, EnrollmentStatus? status, Guid? studentId,
         int page, int pageSize, CancellationToken ct);
-    void Add(ClassEnrollment enrollment);
+    void Add(ClassEnrollment enrollment, Guid? notifyTeacher, string className);
 }

@@ -17,11 +17,13 @@ public sealed class CreateCommentHandler(IGrammarCommentRepository repository, I
         if (content.Length > GrammarComment.MaxLength)
             throw GrammarErrors.Invalid($"Bình luận tối đa {GrammarComment.MaxLength} ký tự.");
 
+        Guid? replyRecipient = null;
         GrammarComment? parent = null;
         if (request.ParentId is { } parentId)
         {
             parent = await repository.GetLiveAsync(parentId, ct) ?? throw GrammarErrors.CommentNotFound();
             if (parent.Target != request.Target) throw GrammarErrors.Invalid("The parent comment is not on this target.");
+            if (parent.LearnerId != request.LearnerId) replyRecipient = parent.LearnerId;
             if (parent.ParentId is { } rootId)
                 parent = await repository.GetLiveAsync(rootId, ct) ?? throw GrammarErrors.CommentNotFound();
         }
@@ -45,7 +47,7 @@ public sealed class CreateCommentHandler(IGrammarCommentRepository repository, I
             Content = content,
             CreatedAt = now
         };
-        repository.Add(comment);
+        repository.Add(comment, replyRecipient);
         await unitOfWork.SaveChangesAsync(ct);
         if (parent is not null) await repository.AdjustReplyCountAsync(parent.Id, 1, ct);
         return comment.ToDto(new HashSet<long>(), request.LearnerId, []);
