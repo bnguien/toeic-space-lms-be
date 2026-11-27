@@ -128,13 +128,13 @@ def main():
     commands = {}
     for service in SERVICES:
         ids = subprocess.check_output(["docker", "ps", "-q", "--filter", f"label=com.docker.compose.project={PROJECT}",
-                                       "--filter", f"label=com.docker.compose.service={service}-db"], text=True).split()
+                                       "--filter", f"label=com.docker.compose.service={service}-db"], text=True, encoding="utf-8").split()
         if len(ids) != 1:
             sys.exit(f"Cần khởi động Docker LMS và chạy migration cho {service}-db trước khi seed.")
         commands[service] = ["docker", "exec", "-i", ids[0], "sh", "-ec",
                              'export MYSQL_PWD="$MYSQL_PASSWORD"; exec mysql --default-character-set=utf8mb4 '
                              '--protocol=TCP -h 127.0.0.1 -u "$MYSQL_USER" --database="$MYSQL_DATABASE"']
-        subprocess.run(commands[service], input="SELECT COUNT(*) INTO @m FROM __EFMigrationsHistory;", text=True, check=True)
+        subprocess.run(commands[service], input="SELECT COUNT(*) INTO @m FROM __EFMigrationsHistory;", text=True, encoding="utf-8", check=True)
     password = getpass.getpass("Đặt mật khẩu cho các tài khoản demo mới (ít nhất 12 ký tự): ")
     if len(password) < 12:
         sys.exit("Mật khẩu cần ít nhất 12 ký tự.")
@@ -142,11 +142,11 @@ def main():
     # Reuse the original calendar when adding people to an existing demo.
     query = f"SELECT StartDate FROM Classes WHERE Id='{uid('class1')}';"
     existing = subprocess.check_output(commands["classroom"] + ["-N", "-B"],
-                                       input=query, text=True).strip()
+                                       input=query, text=True, encoding="utf-8").strip()
     monday = dt.date.fromisoformat(existing) if existing else today - dt.timedelta(days=today.weekday() + 7)
     rows = dataset(password, monday)
     for service in SERVICES:
-        subprocess.run(commands[service], input="\n".join(statements(rows[service])), text=True, check=True)
+        subprocess.run(commands[service], input="\n".join(statements(rows[service])), text=True, encoding="utf-8", check=True)
         print(f"{service}: hoàn tất")
 
 
