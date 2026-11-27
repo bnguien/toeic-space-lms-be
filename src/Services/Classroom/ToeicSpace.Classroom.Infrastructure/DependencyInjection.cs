@@ -16,6 +16,7 @@ using ToeicSpace.Classroom.Infrastructure.Services.Scheduling;
 using ToeicSpace.Classroom.Infrastructure.Persistence.Seeding;
 using ToeicSpace.Classroom.Application.Features.GoogleMeet;
 using ToeicSpace.Classroom.Infrastructure.Services.GoogleMeet;
+using ToeicSpace.Classroom.Infrastructure.Services.StudentWorkspace;
 using Hangfire;
 using Hangfire.MySql;
 
@@ -58,6 +59,7 @@ public static class DependencyInjection
         }
         services.AddScoped<IEnrollmentImportReader, EnrollmentImportReader>();
         services.AddScoped<IClassroomAnalyticsReader, ClassroomAnalyticsReader>();
+        services.AddScoped<IStudentWorkspaceService, StudentWorkspaceService>();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(_ => TimeZoneInfo.FindSystemTimeZoneById(
             config["Classroom:TimeZoneId"] ?? "Asia/Ho_Chi_Minh"));
